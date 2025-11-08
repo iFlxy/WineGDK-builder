@@ -1,0 +1,57 @@
+name: Build WineGDK
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Keyring init
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+
+      - name: Dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel git mingw-w64-gcc gcc \
+            flex bison \
+            libx11 libxext libxrender libxi libxcursor libxrandr libxinerama libxxf86vm \
+            gnutls vulkan-headers vulkan-icd-loader \
+            alsa-lib pulseaudio libusb cups dbus libxcomposite libxdamage libxfixes libxkbfile \
+            libpng libtiff openldap gphoto2 gsm krb5 openal v4l-utils mpg123 libxml2 libxslt gettext vulkan-swrast mesa libglvnd
+
+      - name: Prepare build directory
+        run: |
+          mkdir -p build
+
+      - name: Configure
+        working-directory: build
+        run: |
+          ../configure --enable-win64
+
+      - name: Build
+        working-directory: build
+        run: |
+          make -j$(nproc)
+
+      - name: Package
+        working-directory: build
+        run: |
+          tar czf ../wine-build-${{ github.sha }}.tar.gz .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wine-build
+          path: wine-build-${{ github.sha }}.tar.gz
